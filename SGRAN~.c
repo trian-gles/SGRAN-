@@ -1,8 +1,7 @@
 /**
 	@file
-	simpwave~ - a simple wavetable oscillator using buffer~
+	sgran~ - a granulation algorithm designed by Mara Helmuth, rewritten and ported to Max by Kieran McAuliffe
 
-	@ingroup	examples
 */
 
 #include "ext.h"
@@ -11,96 +10,233 @@
 #include "ext_buffer.h"
 #include "ext_atomic.h"
 #include "ext_obex.h"
+#include <stdlib.h>
+#include <stdbool.h>
+
+#define MAXGRAINS 1000
+#define MIDC_OFFSET (261.62556530059868 / 256.0)
+#define M_LN2	0.69314718055994529
 
 
-typedef struct _simpwave {
+
+typedef struct Grain {
+	float waveSampInc; 
+	float ampSampInc; 
+	float wavePhase; 
+	float ampPhase; 
+	int dur; 
+	float panR; 
+	float panL; 
+	int currTime; 
+	bool isplaying;
+	} Grain;
+
+typedef struct _sgran {
 	t_pxobject w_obj;
 	t_buffer_ref *w_buf;
+	t_buffer_ref *w_env;
 	t_symbol *w_name;
-	long w_begin;
+	t_symbol *w_envname;
+	
+	t_bool running;
+	Grain grains[MAXGRAINS]
+	
 	long w_len;
-	float w_start;
-	float w_end;
+	long w_envlen;
+	
+	double freqLow;
+	double freqMid;
+	double freqHigh;
+	double freqTight;
+
+	double grainDurLow;
+	double grainDurMid;
+	double grainDurHigh;
+	double grainDurTight;
+
+	double panLow;
+	double panMid;
+	double panHigh;
+	double panTight;
+	
+	double grainRateVarLow;
+	double grainRateVarMid;
+	double grainRateVarHigh;
+	double grainRateVarTight;
+	
+	int newGrainCounter;
+	float grainRate;
+	
 	short w_connected[2];
-	t_bool w_buffer_modified;
-} t_simpwave;
+} t_sgran;
 
 
-void *simpwave_new(t_symbol *s,  long argc, t_atom *argv);
-void simpwave_free(t_simpwave *x);
-t_max_err simpwave_notify(t_simpwave *x, t_symbol *s, t_symbol *msg, void *sender, void *data);
-void simpwave_assist(t_simpwave *x, void *b, long m, long a, char *s);
-void simpwave_limits(t_simpwave *x);
-void simpwave_set(t_simpwave *x, t_symbol *s, long ac, t_atom *av);
-void simpwave_float(t_simpwave *x, double f);
-void simpwave_int(t_simpwave *x, long n);
-void simpwave_dblclick(t_simpwave *x);
-void simpwave_perform64(t_simpwave *x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam);
-void simpwave_dsp64(t_simpwave *x, t_object *dsp64, short *count, double samplerate, long maxvectorsize, long flags);
 
+
+void *sgran_new(t_symbol *s,  long argc, t_atom *argv);
+void sgran_free(t_sgran *x);
+t_max_err sgran_notify(t_sgran *x, t_symbol *s, t_symbol *msg, void *sender, void *data);
+void sgran_assist(t_simpwave *x, void *b, long m, long a, char *s);
+void sgran_start(t_sgran *x);
+void sgran_stop(t_sgran *x);
+void sgran_perform64(t_sgran *x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam);
+void sgran_dsp64(t_sgran *x, t_object *dsp64, short *count, double samplerate, long maxvectorsize, long flags);
+
+void sgran_grainrate(t_sgran *x, double rl, double rm, double rh, double rt);
+void sgran_graindur(t_sgran *x, double dl, double dm, double dh, double dt);
+void sgran_freq(t_sgran *x, double fl, double fm, double fh, double ft);
+void sgran_pan(t_sgran *x, double pl, double pm, double ph, double pt); 
+
+double rrand() 
+{
+	double min = -1;
+	double max = 1;
+    double range = (max - min); 
+    double div = RAND_MAX / range;
+    return min + (rand() / div);
+}
+
+// Taken from RTCMIX code
+double octcps(double cps)
+{
+	return log(cps / MIDC_OFFSET) / M_LN2;
+}
+
+double cpsoct(double oct)
+{
+	return pow(2.0, oct) * MIDC_OFFSET;
+}
+
+
+
+// From Mara Helmuth
+double prob(double low,double mid,double high,double tight)
+        // Returns a value within a range close to a preferred value
+                    // tightness: 0 max away from mid
+                     //               1 even distribution
+                      //              2+amount closeness to mid
+                      //              no negative allowed
+{
+	double range, num, sign;
+
+	range = (high-mid) > (mid-low) ? high-mid : mid-low;
+	do {
+	  	if (rrand() > 0.)
+			sign = 1.;
+		else  sign = -1.;
+	  	num = mid + sign*(pow((rrand()+1.)*.5,tight)*range);
+	} while(num < low || num > high);
+	return(num);
+}
 
 static t_symbol *ps_buffer_modified;
-static t_class *s_simpwave_class;
+static t_class *s_sgran_class;
 
 
 void ext_main(void *r)
 {
-	t_class *c = class_new("simpwave~", (method)simpwave_new, (method)simpwave_free, sizeof(t_simpwave), NULL, A_GIMME, 0);
+	t_class *c = class_new("sgran~", (method)sgran_new, (method)sgran_free, sizeof(t_sgran), NULL, A_GIMME, 0);
 
-	class_addmethod(c, (method)simpwave_dsp64,		"dsp64",	A_CANT, 0);
-	class_addmethod(c, (method)simpwave_float,		"float",	A_FLOAT, 0);
-	class_addmethod(c, (method)simpwave_int,		"int",		A_LONG, 0);
-	class_addmethod(c, (method)simpwave_set,		"set",		A_GIMME, 0);
+	class_addmethod(c, (method)sgran_dsp64,		"dsp64",	A_CANT, 0);
+	class_addmethod(c, (method)sgran_start,		gensym("start"), 0);
+	class_addmethod(c, (method)sgran_stop,		gensym("stop"), 0);
+	
+	class_addmethod(c, (method)sgran_notify,		"notify",	A_CANT, 0);
+	
 	class_addmethod(c, (method)simpwave_assist,		"assist",	A_CANT, 0);
-	class_addmethod(c, (method)simpwave_dblclick,	"dblclick",	A_CANT, 0);
-	class_addmethod(c, (method)simpwave_notify,		"notify",	A_CANT, 0);
+	
+	class_addmethod(c, (method)sgran_grainrate, gensym("grainrate"), 
+	A_FLOAT, A_FLOAT, A_FLOAT, A_FLOAT, 0);
+	
+	class_addmethod(c, (method)sgran_graindur, gensym("graindur"), 
+	A_FLOAT, A_FLOAT, A_FLOAT, A_FLOAT, 0);
+	
+	class_addmethod(c, (method)sgran_freq, gensym("freq"), 
+	A_FLOAT, A_FLOAT, A_FLOAT, A_FLOAT, 0);
+	
+	class_addmethod(c, (method)sgran_pan, gensym("pan"), 
+	A_FLOAT, A_FLOAT, A_FLOAT, A_FLOAT, 0);
 
 	class_dspinit(c);
 	class_register(CLASS_BOX, c);
-	s_simpwave_class = c;
+	s_sgran_class = c;
 
 	ps_buffer_modified = gensym("buffer_modified");
 }
+/*
+	Inlets:
+	0 : On/off
+	1 : grain rate
+	2 : grain dur
+	3 : freq
+	4 : pan
+	
+	1-4 take a list of values for low, mid, high, tight
+	
+*/
 
-
-void *simpwave_new(t_symbol *s,  long argc, t_atom *argv)
+/* Args:
+		p0: wavetable
+		p1: grainEnv
+	*/
+void *sgran_new(t_symbol *s,  long argc, t_atom *argv)
 {
-	t_simpwave *x = (t_simpwave *)object_alloc(s_simpwave_class);
+	t_sgran *x = (t_sgran *)object_alloc(s_sgran_class);
 	t_symbol *buf=0;
-	float start=0., end=0.;
-	double msr = sys_getsr() * 0.001;
+	t_symbol *env=0;
 
 	dsp_setup((t_pxobject *)x,3);
 	buf = atom_getsymarg(0,argc,argv);
-	start = atom_getfloatarg(1,argc,argv);
-	end = atom_getfloatarg(2,argc,argv);
+	env = atom_getsymarg(1,argc,argv);
 
 	x->w_name = buf;
-	x->w_start = start;
-	x->w_end = end;
-	x->w_begin = start * msr;
-	x->w_len = (end - start) * msr;
-	outlet_new((t_object *)x, "signal");		// audio outlet
+	x->w_envname = env;
+	
+	
+	//outlets
+	outlet_new((t_object *)x, "signal");		// audio outlet l
+	outlet_new((t_object *)x, "signal");		// audio outlet r
+	
+	
+	// Setup Grains
+	for (size_t i = 0; i < 2000; i++){
+        x->grains[i] = (Grain){.waveSampInc=0, 
+        	.ampSampInc=0, 
+        	.wavePhase=0, 
+        	.ampPhase=0, 
+        	.dur=0, 
+        	.panR=0, 
+        	.panL=0, 
+        	.currTime=0, 
+        	.isplaying=false };
+    }
 
 	// create a new buffer reference, initially referencing a buffer with the provided name
 	x->w_buf = buffer_ref_new((t_object *)x, x->w_name);
+	x->w_env = buffer_ref_new((t_object *)x, x->w_envname);
+	
+	x->w_len = buffer_getframecount(x->w_buf);
+	x->w_envlen = buffer_getframecount(x->w_env);
 
 	return (x);
 }
 
 
-void simpwave_free(t_simpwave *x)
+
+
+void sgran_free(t_sgran *x)
 {
 	dsp_free((t_pxobject *)x);
 
 	// must free our buffer reference when we will no longer use it
 	object_free(x->w_buf);
+	object_free(x->w_env);
 }
 
 
 // A notify method is required for our buffer reference
 // This handles notifications when the buffer appears, disappears, or is modified.
-t_max_err simpwave_notify(t_simpwave *x, t_symbol *s, t_symbol *msg, void *sender, void *data)
+t_max_err sgran_notify(t_sgran *x, t_symbol *s, t_symbol *msg, void *sender, void *data)
 {
 	if (msg == ps_buffer_modified)
 		x->w_buffer_modified = true;
@@ -108,122 +244,88 @@ t_max_err simpwave_notify(t_simpwave *x, t_symbol *s, t_symbol *msg, void *sende
 }
 
 
-void simpwave_assist(t_simpwave *x, void *b, long m, long a, char *s)
+void sgran_assist(t_sgran *x, void *b, long m, long a, char *s)
 {
 	if (m == ASSIST_INLET) {	// inlets
 		switch (a) {
-		case 0:	snprintf_zero(s, 256, "(signal) Table Position (from 0 to 1)");	break;
-		case 1:	snprintf_zero(s, 256, "(signal/float) Starting Table Location in ms");	break;
-		case 2:	snprintf_zero(s, 256, "(signal/float) Ending Table Location in ms");	break;
+		case 0:	snprintf_zero(s, 256, "Various messages");	break;
 		}
 	}
-	else {	// outlet
-		snprintf_zero(s, 256, "(signal) Output %ld", a+1);
-	}
-}
-
-
-void simpwave_limits(t_simpwave *x)
-{
-	t_buffer_obj *b = buffer_ref_getobject(x->w_buf); // get the actual buffer object from our reference
-
-	if (b) {
-		t_atom_long	channelcount = buffer_getchannelcount(b);		// number of floats in a frame
-		t_atom_long	framecount   = buffer_getframecount(b);			// number of floats long the buffer is for a single channel
-		double		msr			 = buffer_getmillisamplerate(b);	// sample rate of the buffer in samples per millisecond
-
-		x->w_begin = (long)(x->w_start * msr) * channelcount;//buffer sr-jkc
-		if (!x->w_end)	{// use entire table, eek!
-			x->w_len = framecount;
-		} else {
-			x->w_len = (x->w_end - x->w_start) * msr; //buffer sr-jkc
-		}
-		// now restrict these values
-		if (x->w_begin < 0)
-			x->w_begin = 0;
-		else if (x->w_begin >= framecount * channelcount)
-			x->w_begin = (framecount - 1) * channelcount;
-		if (x->w_begin + (x->w_len * channelcount) >= framecount * channelcount) {
-			x->w_len = framecount - (x->w_begin / channelcount);
+	else if (m == ASSIST_OUTLET){	// outlet
+		switch (a) {
+		case 0:	snprintf_zero(s, 256, "(signal) right output");	break;
+		case 1:	snprintf_zero(s, 256, "(signal) left output");	break;
 		}
 	}
 }
 
 
-void simpwave_doset(t_simpwave *x, t_symbol *s, long ac, t_atom *av)
-{
-	t_symbol *name;
-	double start, end;
+////
+// START AND STOP MSGS
+////
+void sgran_start(t_sgran *x){
+	x->running = true;
+}
 
-	name = (ac) ? atom_getsym(av) : gensym("");
-	start = (ac>1) ? atom_getfloat(av+1) : 0.;
-	end = (ac>2) ? atom_getfloat(av+2) : 0.;
-
-	if (start < 0)
-		start = 0;
-	if (end < 0)
-		end = 0;
-	x->w_start = start;
-	x->w_end = end;
-
-	buffer_ref_set(x->w_buf, name);	// change the buffer used by our buffer reference
-	simpwave_limits(x);
+void sgran_stop(t_sgran *x){
+	x->running = false;
 }
 
 
-// calls set the buffer ref should happen on the main thread only
-void simpwave_set(t_simpwave *x, t_symbol *s, long ac, t_atom *av)
-{
-	defer(x, (method)simpwave_doset, s, ac, av);
+////
+// PARAMETER MESSAGES
+////
+
+void sgran_grainrate(t_sgran *x, double rl, double rm, double rh, double rt){
+	x->grainRateVarLow = rl;
+	x->grainRateVarMid = max(rm, rl);
+	x->grainRateVarHigh = max(rh, rm);
+	x->grainRateVarTight = rt;
+}
+
+void sgran_graindur(t_sgran *x, double dl, double dm, double dh, double dt){
+	x->grainDurLow = dl;
+	x->grainDurMid = max(dm, dl);
+	x->grainDurHigh = max(dh, dm);
+	x->grainDurTight = dt;
+}
+
+void sgran_freq(t_sgran *x, double fl, double fm, double fh, double ft){
+	x->freqLow = fl;
+	x->freqMid = max(fm, fl);
+	x->freqHigh = max(fh, fm);
+	x->freqTight = ft;
+}
+
+void sgran_pan(t_sgran *x, double pl, double pm, double ph, double pt) {
+	x->panLow = pl;
+	x->panMid = max(pm, pl);
+	x->panHigh = max(ph, pm);
+	x->panTight = pt;
+}
+
+void new_grain(t_sgran *x, Grain *g){
+	
+}
+
+void reset_grain_rate(t_sgran *x){
+	x->newGrainCounter = (int)round(sys_getsr() * prob(x->grainRateVarLow, x->grainRateVarMid, x->grainDurHigh, x->grainDurTight));
 }
 
 
-void simpwave_float(t_simpwave *x, double f)
+// rewrite
+void sgran_perform64(t_sgran *x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam)
 {
-	long in = proxy_getinlet((t_object *)x);
-
-	if (in == 1) {		// set min
-		if (f < 0)
-			f = 0;
-		if (f > x->w_end)
-			x->w_end = f;
-		x->w_start = f;
-		simpwave_limits(x);
-	}
-	else if (in == 2) {	// set max
-		if (f < 0)
-			f = 0;
-		if (f < x->w_start)
-			x->w_start = f;
-		x->w_end = f;
-		simpwave_limits(x);
-	}
-}
-
-
-void simpwave_int(t_simpwave *x, long n)
-{
-	simpwave_float(x,(double)n);
-}
-
-
-void simpwave_dblclick(t_simpwave *x)
-{
-	buffer_view(buffer_ref_getobject(x->w_buf));
-}
-
-
-void simpwave_perform64(t_simpwave *x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam)
-{
-	t_double		*in = ins[0];
-	t_double		*out = outs[0];
-	t_double		min = x->w_connected[0]? *ins[1] : x->w_start;
-	t_double		max = x->w_connected[1]? *ins[2] : x->w_end;
+	t_double		*r_out = outs[0];
+	t_double		*l_out = outs[1];
+	
+	
 	int				n = sampleframes;
 	float			*b;
 	long			len, dex;
 	double			v;
 	t_buffer_obj	*buffer = buffer_ref_getobject(x->w_buf);
+	t_buffer_obj	*env = buffer_ref_getobject(x->w_env);
 	t_atom_long		channelcount;
 
 	b = buffer_locksamples(buffer);
@@ -234,7 +336,7 @@ void simpwave_perform64(t_simpwave *x, t_object *dsp64, double **ins, long numin
 
 	if (x->w_buffer_modified) {
 		x->w_buffer_modified = false;
-		simpwave_limits(x);
+		sgran_limits(x);
 		if (!x->w_connected[0])
 			min = x->w_start;
 		if (!x->w_connected[1])
@@ -252,7 +354,7 @@ void simpwave_perform64(t_simpwave *x, t_object *dsp64, double **ins, long numin
 			x->w_start = min;
 			x->w_end = max;
 		}
-		simpwave_limits(x);
+		sgran_limits(x);
 	}
 
 	b += x->w_begin;
@@ -292,10 +394,10 @@ zero:
 		*out++ = 0.;
 }
 
-
-void simpwave_dsp64(t_simpwave *x, t_object *dsp64, short *count, double samplerate, long maxvectorsize, long flags)
+// adjust for the appropriate number of inlets and outlets (2 out, no in)
+void sgran_dsp64(t_sgran *x, t_object *dsp64, short *count, double samplerate, long maxvectorsize, long flags)
 {
 	x->w_connected[0] = count[1];
 	x->w_connected[1] = count[2];
-	object_method(dsp64, gensym("dsp_add64"), x, simpwave_perform64, 0, NULL);
+	object_method(dsp64, gensym("dsp_add64"), x, sgran_perform64, 0, NULL);
 }
