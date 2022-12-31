@@ -96,7 +96,8 @@ double rrand()
     return min + (rand() / div);
 }
 
-// Taken from RTCMIX code
+// Taken from RTCMIX code 
+// https://github.com/RTcmix/RTcmix/blob/1b04fd3f121a1c65743fde8ea37eb5d65f2cf35c/genlib/pitchconv.c
 double octcps(double cps)
 {
 	return log(cps / MIDC_OFFSET) / M_LN2;
@@ -105,6 +106,18 @@ double octcps(double cps)
 double cpsoct(double oct)
 {
 	return pow(2.0, oct) * MIDC_OFFSET;
+}
+
+float oscili(float amp, float si, double *farray, int len, float *phs)
+{
+	register int i =  *phs;        
+	register int k =  (i + 1) % len;  
+	float frac = *phs  - i;      
+	*phs += si;                 
+	while(*phs >= len)
+		*phs -= len;       
+	return((*(farray+i) + (*(farray+k) - *(farray+i)) *
+					   frac) * amp);
 }
 
 
@@ -138,23 +151,24 @@ void ext_main(void *r)
 	t_class *c = class_new("sgran~", (method)sgran_new, (method)sgran_free, sizeof(t_sgran), NULL, A_GIMME, 0);
 
 	class_addmethod(c, (method)sgran_dsp64,		"dsp64",	A_CANT, 0);
-	class_addmethod(c, (method)sgran_start,		gensym("start"), 0);
-	class_addmethod(c, (method)sgran_stop,		gensym("stop"), 0);
+	class_addmethod(c, (method)sgran_start,		"start", 0);
+	class_addmethod(c, (method)sgran_stop,		"stop", 0);
 	
 	class_addmethod(c, (method)sgran_notify,		"notify",	A_CANT, 0);
 	
 	class_addmethod(c, (method)simpwave_assist,		"assist",	A_CANT, 0);
 	
-	class_addmethod(c, (method)sgran_grainrate, gensym("grainrate"), 
+	// these float methods should be replaced with A_GIMME, see docs
+	class_addmethod(c, (method)sgran_grainrate, "grainrate", 
 	A_FLOAT, A_FLOAT, A_FLOAT, A_FLOAT, 0);
 	
-	class_addmethod(c, (method)sgran_graindur, gensym("graindur"), 
+	class_addmethod(c, (method)sgran_graindur, "graindur", 
 	A_FLOAT, A_FLOAT, A_FLOAT, A_FLOAT, 0);
 	
-	class_addmethod(c, (method)sgran_freq, gensym("freq"), 
+	class_addmethod(c, (method)sgran_freq, "freq", 
 	A_FLOAT, A_FLOAT, A_FLOAT, A_FLOAT, 0);
 	
-	class_addmethod(c, (method)sgran_pan, gensym("pan"), 
+	class_addmethod(c, (method)sgran_pan, "pan", 
 	A_FLOAT, A_FLOAT, A_FLOAT, A_FLOAT, 0);
 
 	class_dspinit(c);
@@ -165,13 +179,7 @@ void ext_main(void *r)
 }
 /*
 	Inlets:
-	0 : On/off
-	1 : grain rate
-	2 : grain dur
-	3 : freq
-	4 : pan
-	
-	1-4 take a list of values for low, mid, high, tight
+	0 : On/off, grainrate, graindur, freq, pan
 	
 */
 
@@ -179,6 +187,8 @@ void ext_main(void *r)
 		p0: wavetable
 		p1: grainEnv
 	*/
+	
+// will eventually need to handle for buffers with more than one channel
 void *sgran_new(t_symbol *s,  long argc, t_atom *argv)
 {
 	t_sgran *x = (t_sgran *)object_alloc(s_sgran_class);
@@ -291,24 +301,37 @@ void sgran_graindur(t_sgran *x, double dl, double dm, double dh, double dt){
 }
 
 void sgran_freq(t_sgran *x, double fl, double fm, double fh, double ft){
-	x->freqLow = fl;
+	x->freqLow = max(fl, 20.);
 	x->freqMid = max(fm, fl);
 	x->freqHigh = max(fh, fm);
 	x->freqTight = ft;
 }
 
 void sgran_pan(t_sgran *x, double pl, double pm, double ph, double pt) {
-	x->panLow = pl;
+	x->panLow = max(0, pl);
 	x->panMid = max(pm, pl);
-	x->panHigh = max(ph, pm);
+	x->panHigh = min(max(ph, pm), 1);
 	x->panTight = pt;
 }
 
-void new_grain(t_sgran *x, Grain *g){
+void sgran_new_grain(t_sgran *x, Grain *grain){
+	int sr = sys_getsr();
+	float freq = cpsoct((float)prob(octcps(x->freqLow), octcps(x->freqMid), octcps(x->freqHigh), x->freqTight));
+	float grainDurSamps = (float) prob(x->grainDurLow, x->grainDurMid, x->grainDurHigh, x->grainDurTight) * sr;
+	float panR = (float) prob(x->panLow, x->panMid, x->panHigh, x->panTight);
+	grain->waveSampInc = x->w_len * freq / sr;
+	grain->ampSampInc = ((float)x->envlen) / grainDurSamps;
+	grain->currTime = 0;
+	grain->isplaying = true;
+	grain->wavePhase = 0;
+	grain->ampPhase = 0;
+	grain->panR = panR;
+	grain->panL = 1 - panR; // separating these in RAM means fewer sample rate calculations
+	(*grain).dur = (int)round(grainDurSamps);
 	
 }
 
-void reset_grain_rate(t_sgran *x){
+void sgran_reset_grain_rate(t_sgran *x){
 	x->newGrainCounter = (int)round(sys_getsr() * prob(x->grainRateVarLow, x->grainRateVarMid, x->grainDurHigh, x->grainDurTight));
 }
 
@@ -322,72 +345,60 @@ void sgran_perform64(t_sgran *x, t_object *dsp64, double **ins, long numins, dou
 	
 	int				n = sampleframes;
 	float			*b;
-	long			len, dex;
-	double			v;
+	float			*e;
+	
 	t_buffer_obj	*buffer = buffer_ref_getobject(x->w_buf);
 	t_buffer_obj	*env = buffer_ref_getobject(x->w_env);
-	t_atom_long		channelcount;
 
 	b = buffer_locksamples(buffer);
-	if (!b)
+	e = buffer_locksamples(env);
+	
+	if (!b || x->w_buffer_modified)
 		goto zero;
+	
+	while (n--){
+		for (size_t j = 0; j < MAXGRAINS; j++){
+			Grain* currGrain = x->grains[j];
+			if (currGrain->isplaying)
+			{
+				if (++(*currGrain).currTime > currGrain->dur)
+				{
+					currGrain->isplaying = false;
+				}
+				else
+				{
+					// should include an interpolation option at some point
+					float grainAmp = oscili(1, currGrain->ampSampInc, e, x->w_envlen, &((*currGrain).ampPhase));
+					float grainOut = oscili(grainAmp ,currGrain->waveSampInc, b, x->w_len, &((*currGrain).wavePhase));
+					*l_out += grainOut * currGrain->panL;
+					*r_out += grainOut * currGrain->panR;
+				}
+			}
+			// this is not an else statement so a grain can be potentially stopped and restarted on the same frame
 
-	channelcount = buffer_getchannelcount(buffer);
+			if ((x->newGrainCounter <= 0) && !currGrain->isplaying)
+			{
+				sgran_reset_grain_rate(x);
+				if (x->newGrainCounter > 0) // we don't allow two grains to be create on the same frame
+					{sgran_new_grain(x, currGrain);}
+				else
+					{x->newGrainCounter = 1;}
 
-	if (x->w_buffer_modified) {
-		x->w_buffer_modified = false;
-		sgran_limits(x);
-		if (!x->w_connected[0])
-			min = x->w_start;
-		if (!x->w_connected[1])
-			max = x->w_end;
-	}
-
-	if (min != x->w_start || max != x->w_end) {
-		if (min < 0.)
-			min = 0.;
-		if (max < 0.)
-			max = 0.;
-		if (min > max)
-			x->w_end = x->w_start = min;
-		else {
-			x->w_start = min;
-			x->w_end = max;
-		}
-		sgran_limits(x);
-	}
-
-	b += x->w_begin;
-	len = x->w_len;
-
-	if (channelcount == 1) {
-		while (n--) {
-			v = *in++;
-			if (v < 0)
-				v = 0;
-			if (v > 1)
-				v = 1;
-			dex = v * (double)len;
-			if (dex>len-1)
-				dex = len-1;
-			*out++ = b[dex];
+			}
 		}
 	}
-	else if (channelcount > 1) {
-		while (n--) {
-			v = *in++;
-			if (v < 0)
-				v = 0;
-			if (v > 1)
-				v = 1;
-			dex = (long)(v * (double)len) * channelcount;
-			if (dex>(len-1)*channelcount)
-				dex = (len-1)*channelcount;
-			*out++ = b[dex];
-		}
+	
+	// if all current grains are occupied, we skip this request for a new grain
+	if (x->newGrainCounter <= 0)
+	{
+		sgran_reset_grain_rate(x);
 	}
+	
+	
+	x->newGrainCounter--;
 
 	buffer_unlocksamples(buffer);
+	buffer_unlocksamples(env);
 	return;
 zero:
 	while (n--)
@@ -397,7 +408,5 @@ zero:
 // adjust for the appropriate number of inlets and outlets (2 out, no in)
 void sgran_dsp64(t_sgran *x, t_object *dsp64, short *count, double samplerate, long maxvectorsize, long flags)
 {
-	x->w_connected[0] = count[1];
-	x->w_connected[1] = count[2];
 	object_method(dsp64, gensym("dsp_add64"), x, sgran_perform64, 0, NULL);
 }
