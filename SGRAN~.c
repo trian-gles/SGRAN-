@@ -196,7 +196,7 @@ void *sgran_new(t_symbol *s,  long argc, t_atom *argv)
 	t_symbol *buf=0;
 	t_symbol *env=0;
 
-	dsp_setup((t_pxobject *)x,3);
+	dsp_setup((t_pxobject *)x,0);
 	buf = atom_getsymarg(0,argc,argv);
 	env = atom_getsymarg(1,argc,argv);
 
