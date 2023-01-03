@@ -83,6 +83,7 @@ void sgran_stop(t_sgran *x);
 void sgran_perform64(t_sgran *x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam);
 void sgran_dsp64(t_sgran *x, t_object *dsp64, short *count, double samplerate, long maxvectorsize, long flags);
 
+void sgran_set(t_sgran* x, t_symbol* s, long argc, t_atom* argv);
 void sgran_grainrate(t_sgran *x, double rl, double rm, double rh, double rt);
 void sgran_graindur(t_sgran *x, double dl, double dm, double dh, double dt);
 void sgran_freq(t_sgran *x, double fl, double fm, double fh, double ft);
@@ -156,6 +157,7 @@ void ext_main(void *r)
 	class_addmethod(c, (method)sgran_stop,		"stop", 0);
 	
 	class_addmethod(c, (method)sgran_notify,		"notify",	A_CANT, 0);
+	class_addmethod(c, (method)sgran_set, "set", A_GIMME, 0);
 	
 	class_addmethod(c, (method)sgran_assist,		"assist",	A_CANT, 0);
 	
@@ -180,7 +182,7 @@ void ext_main(void *r)
 }
 /*
 	Inlets:
-	0 : On/off, grainrate, graindur, freq, pan
+	0 : start, stop, grainrate, graindur, freq, pan
 	
 */
 
@@ -233,6 +235,7 @@ void *sgran_new(t_symbol *s,  long argc, t_atom *argv)
 	x->w_len = buffer_getframecount(b);
 	x->w_envlen = buffer_getframecount(e);
 
+
 	return (x);
 }
 
@@ -249,25 +252,47 @@ void sgran_free(t_sgran *x)
 }
 
 
+////
+// SET BUFFER
+////
+
+void sgran_setbuffers(t_sgran* x, t_symbol* s, long ac, t_atom* av) {
+	buffer_ref_set(x->w_buf, x->w_name);
+	buffer_ref_set(x->w_env, x->w_envname);
+
+	t_buffer_obj* b = buffer_ref_getobject(x->w_buf);
+	t_buffer_obj* e = buffer_ref_getobject(x->w_env);
+
+	x->w_len = buffer_getframecount(b);
+	x->w_envlen = buffer_getframecount(e);
+}
+
+void sgran_set(t_sgran* x, t_symbol* s, long argc, t_atom* argv) {
+	x->w_name = atom_getsymarg(0, argc, argv);
+	x->w_envname = atom_getsymarg(1, argc, argv);
+	defer((t_object*)x, (method)sgran_setbuffers, NULL, 0, NULL);
+}
+
 // A notify method is required for our buffer reference
 // This handles notifications when the buffer appears, disappears, or is modified.
 t_max_err sgran_notify(t_sgran *x, t_symbol *s, t_symbol *msg, void *sender, void *data)
 {
-	t_buffer_ref *mod_buffer;
-	
 	if (msg == ps_buffer_modified){
 		x->w_buffer_modified = true;
+		defer((t_object*)x, (method)sgran_setbuffers, NULL, 0, NULL);
 		if (s == x->w_name){
-			mod_buffer = x->w_buf;
+			return buffer_ref_notify(x->w_buf, s, msg, sender, data);
 		}
 		else if (s == x->w_envname)
 		{
-			mod_buffer = x->w_env;
+			return buffer_ref_notify(x->w_env, s, msg, sender, data);
 		}
-	}
+
 		
-	return buffer_ref_notify(mod_buffer, s, msg, sender, data);
+	}
 }
+		
+	
 
 
 void sgran_assist(t_sgran *x, void *b, long m, long a, char *s)
@@ -284,6 +309,8 @@ void sgran_assist(t_sgran *x, void *b, long m, long a, char *s)
 		}
 	}
 }
+
+
 
 
 ////
@@ -331,7 +358,7 @@ void sgran_pan(t_sgran *x, double pl, double pm, double ph, double pt) {
 }
 
 void sgran_new_grain(t_sgran *x, Grain *grain){
-	int sr = sys_getsr();
+	float sr = sys_getsr();
 	float freq = cpsoct((float)prob(octcps(x->freqLow), octcps(x->freqMid), octcps(x->freqHigh), x->freqTight));
 	float grainDurSamps = (float) prob(x->grainDurLow, x->grainDurMid, x->grainDurHigh, x->grainDurTight) * sr;
 	float panR = (float) prob(x->panLow, x->panMid, x->panHigh, x->panTight);
@@ -348,7 +375,7 @@ void sgran_new_grain(t_sgran *x, Grain *grain){
 }
 
 void sgran_reset_grain_rate(t_sgran *x){
-	x->newGrainCounter = (int)round(sys_getsr() * prob(x->grainRateVarLow, x->grainRateVarMid, x->grainDurHigh, x->grainDurTight));
+	x->newGrainCounter = (int)round((double)sys_getsr() * prob(x->grainRateVarLow, x->grainRateVarMid, x->grainRateVarHigh, x->grainRateVarTight));
 }
 
 
@@ -369,8 +396,12 @@ void sgran_perform64(t_sgran *x, t_object *dsp64, double **ins, long numins, dou
 	b = buffer_locksamples(buffer);
 	e = buffer_locksamples(env);
 	
-	if (!b || x->w_buffer_modified)
+	if (!b ||!e|| !x->running)
+	{
+		//post("DSP failure");
 		goto zero;
+	}
+		
 	
 	while (n--){
 		for (size_t j = 0; j < MAXGRAINS; j++){
@@ -404,6 +435,7 @@ void sgran_perform64(t_sgran *x, t_object *dsp64, double **ins, long numins, dou
 		}
 		l_out++;
 		r_out++;
+		x->newGrainCounter--;
 	}
 	
 	// if all current grains are occupied, we skip this request for a new grain
@@ -413,13 +445,14 @@ void sgran_perform64(t_sgran *x, t_object *dsp64, double **ins, long numins, dou
 	}
 	
 	
-	x->newGrainCounter--;
+	
 
 	buffer_unlocksamples(buffer);
 	buffer_unlocksamples(env);
 	return;
 zero:
 	while (n--) {
+			
 		*l_out++ = 0.;
 		*r_out++ = 0.;
 	}
