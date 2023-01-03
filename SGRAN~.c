@@ -253,9 +253,20 @@ void sgran_free(t_sgran *x)
 // This handles notifications when the buffer appears, disappears, or is modified.
 t_max_err sgran_notify(t_sgran *x, t_symbol *s, t_symbol *msg, void *sender, void *data)
 {
-	if (msg == ps_buffer_modified) // FIGURE OUT HOW TO HANDLE THIS
+	t_buffer_ref *mod_buffer;
+	
+	if (msg == ps_buffer_modified){
 		x->w_buffer_modified = true;
-	return buffer_ref_notify(x->w_buf, s, msg, sender, data);
+		if (s == x->w_name){
+			mod_buffer = x->w_buf;
+		}
+		else if (s == x->w_envname)
+		{
+			mod_buffer = x->w_env;
+		}
+	}
+		
+	return buffer_ref_notify(mod_buffer, s, msg, sender, data);
 }
 
 
