@@ -257,8 +257,11 @@ void sgran_free(t_sgran *x)
 ////
 
 void sgran_setbuffers(t_sgran* x, t_symbol* s, long ac, t_atom* av) {
-	buffer_ref_set(x->w_buf, x->w_name);
-	buffer_ref_set(x->w_env, x->w_envname);
+	object_free(x->w_buf);
+	object_free(x->w_env);
+
+	x->w_buf = buffer_ref_new((t_object*)x, x->w_name);
+	x->w_env = buffer_ref_new((t_object*)x, x->w_envname);
 
 	t_buffer_obj* b = buffer_ref_getobject(x->w_buf);
 	t_buffer_obj* e = buffer_ref_getobject(x->w_env);
@@ -317,7 +320,14 @@ void sgran_assist(t_sgran *x, void *b, long m, long a, char *s)
 // START AND STOP MSGS
 ////
 void sgran_start(t_sgran *x){
-	x->running = true;
+	if (!buffer_ref_exists(x->w_buf) || !buffer_ref_exists(x->w_env))
+	{
+		error("Make sure you've configured a wavetable buffer and envelope buffer!");
+		defer((t_object*)x, (method)sgran_setbuffers, NULL, 0, NULL);
+	}
+		
+	else
+		x->running = true;
 }
 
 void sgran_stop(t_sgran *x){
@@ -331,29 +341,29 @@ void sgran_stop(t_sgran *x){
 
 void sgran_grainrate(t_sgran *x, double rl, double rm, double rh, double rt){
 	x->grainRateVarLow = rl;
-	x->grainRateVarMid = max(rm, rl);
-	x->grainRateVarHigh = max(rh, rm);
+	x->grainRateVarMid = fmax(rm, rl);
+	x->grainRateVarHigh = fmax(rh, rm);
 	x->grainRateVarTight = rt;
 }
 
 void sgran_graindur(t_sgran *x, double dl, double dm, double dh, double dt){
 	x->grainDurLow = dl;
-	x->grainDurMid = max(dm, dl);
-	x->grainDurHigh = max(dh, dm);
+	x->grainDurMid = fmax(dm, dl);
+	x->grainDurHigh = fmax(dh, dm);
 	x->grainDurTight = dt;
 }
 
 void sgran_freq(t_sgran *x, double fl, double fm, double fh, double ft){
-	x->freqLow = max(fl, 20.);
-	x->freqMid = max(fm, fl);
-	x->freqHigh = max(fh, fm);
+	x->freqLow = fmax(fl, 20.);
+	x->freqMid = fmax(fm, fl);
+	x->freqHigh = fmax(fh, fm);
 	x->freqTight = ft;
 }
 
 void sgran_pan(t_sgran *x, double pl, double pm, double ph, double pt) {
-	x->panLow = max(0, pl);
-	x->panMid = max(pm, pl);
-	x->panHigh = min(max(ph, pm), 1);
+	x->panLow = fmax(0, pl);
+	x->panMid = fmax(pm, pl);
+	x->panHigh = fmin(fmax(ph, pm), 1);
 	x->panTight = pt;
 }
 
