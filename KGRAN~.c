@@ -333,10 +333,10 @@ void kgran_graindur(t_kgran *x, double dl, double dm, double dh, double dt){
 }
 
 void kgran_grainhead(t_kgran *x, double hl, double hm, double hh, double ht){
-	x->grainDurLow = hl;
-	x->grainDurMid = fmax(hm, hl);
-	x->grainDurHigh = fmax(hh, hm);
-	x->grainDurTight = ht;
+	x->grainHeadLow = fmax(0, hl);
+	x->grainHeadMid = fmax(hm, hl);
+	x->grainHeadHigh = fmin(fmax(hh, hm), 1);
+	x->grainHeadTight = ht;
 }
 
 void kgran_freq(t_kgran *x, double fl, double fm, double fh, double ft){
@@ -354,16 +354,24 @@ void kgran_pan(t_kgran *x, double pl, double pm, double ph, double pt) {
 }
 
 void kgran_new_grain(t_kgran *x, Grain *grain, double sync){
+	int sr = sys_getsr();
 	int head = floor(sync * x->w_len);
 	
-	float trans = (float)prob(transLow, transMid, transHigh, transTight);
+	float floatShift = (float) prob(x->grainHeadLow, x->grainHeadMid, x->grainHeadHigh, x->grainHeadTight);
+	int idealShift = floor(floatShift * w->w_len);
+	
+	float trans = (float)prob(x->transLow, x->transMid, x->transHigh, x->transTight);
 	float increment = cpsoct(10.0 + trans) * oneover_cpsoct10;
-	float offset = increment - 1;
+	float offset; // deviation every sample versus the head
+	if (x->w_connected)
+		offset = increment - 1; // moving buffer
+	else
+		offset = increment; // static buffer 
 	
 	float grainDurSamps = (float) prob(x->grainDurLow, x->grainDurMid, x->grainDurHigh, x->grainDurTight) * sr;
 	int sampOffset = (int) round(abs(grainDurSamps * offset)); // how many total samples the grain will deviate from the normal buffer movement
 
-	int sr = sys_getsr();
+	
 	
 	if (sampOffset >= x->w_len) // this grain cannot exist with size of the buffer
 	{
@@ -390,7 +398,7 @@ void kgran_new_grain(t_kgran *x, Grain *grain, double sync){
 		return; // There's a better way to handle this that I'll add at some point...
 	}
 	
-	grain->currTime = head - (rand() % (maxShift - minShift) + minShift);
+	grain->currTime = head + fmax(fmin(idealShift, maxShift), minShift); // adjust the grain so that it retains its duration within the buffer limitations
 	
 	
 	
