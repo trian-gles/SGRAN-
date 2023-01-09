@@ -10,7 +10,7 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 110.0, 144.0, 640.0, 480.0 ],
+		"rect" : [ 110.0, 144.0, 1609.0, 766.0 ],
 		"bglocked" : 0,
 		"openinpresentation" : 0,
 		"default_fontsize" : 12.0,
@@ -39,6 +39,218 @@
 		"subpatcher_template" : "",
 		"assistshowspatchername" : 0,
 		"boxes" : [ 			{
+				"box" : 				{
+					"domainlabel" : "pan",
+					"id" : "obj-20",
+					"margins" : [ 16.0, 16.0, 32.0, 32.0 ],
+					"maxclass" : "plot~",
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"numpoints" : 101,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 725.0, 591.0, 315.0, 169.0 ],
+					"rangelabel" : "likelihood",
+					"subplots" : [ 						{
+							"color" : [ 0.4, 0.4, 0.75, 1.0 ],
+							"thickness" : 3.0,
+							"point_style" : "none",
+							"line_style" : "origin",
+							"number_style" : "none",
+							"filter" : "none",
+							"domain_start" : 0.0,
+							"domain_end" : 1.0,
+							"domain_style" : "linear",
+							"domain_markers" : [  ],
+							"domain_labels" : [ 0.0, "0", 0.2, "0.2", 0.4, "0.4", 0.6, "0.6", 0.8, "0.8", 1.0, "1" ],
+							"range_start" : 0.0,
+							"range_end" : 1.0,
+							"range_style" : "linear",
+							"range_markers" : [  ],
+							"range_labels" : [  ],
+							"origin_x" : 0.0,
+							"origin_y" : 0.0
+						}
+ ]
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"domainlabel" : "freq",
+					"id" : "obj-19",
+					"margins" : [ 16.0, 16.0, 32.0, 32.0 ],
+					"maxclass" : "plot~",
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"numpoints" : 101,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 725.0, 411.0, 315.0, 169.0 ],
+					"rangelabel" : "likelihood",
+					"subplots" : [ 						{
+							"color" : [ 0.4, 0.4, 0.75, 1.0 ],
+							"thickness" : 3.0,
+							"point_style" : "none",
+							"line_style" : "origin",
+							"number_style" : "none",
+							"filter" : "none",
+							"domain_start" : 0.0,
+							"domain_end" : 1.0,
+							"domain_style" : "linear",
+							"domain_markers" : [  ],
+							"domain_labels" : [ 0.0, "220", 0.2, "352", 0.4, "484", 0.6, "616", 0.8, "748", 1.0, "880" ],
+							"range_start" : 0.0,
+							"range_end" : 111.995666151180956,
+							"range_style" : "linear",
+							"range_markers" : [  ],
+							"range_labels" : [  ],
+							"origin_x" : 0.0,
+							"origin_y" : 0.0
+						}
+ ]
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"domainlabel" : "graindur",
+					"id" : "obj-18",
+					"margins" : [ 16.0, 16.0, 32.0, 32.0 ],
+					"maxclass" : "plot~",
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"numpoints" : 101,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 725.0, 219.0, 315.0, 169.0 ],
+					"rangelabel" : "likelihood",
+					"subplots" : [ 						{
+							"color" : [ 0.4, 0.4, 0.75, 1.0 ],
+							"thickness" : 3.0,
+							"point_style" : "none",
+							"line_style" : "origin",
+							"number_style" : "none",
+							"filter" : "none",
+							"domain_start" : 0.0,
+							"domain_end" : 1.0,
+							"domain_style" : "linear",
+							"domain_markers" : [  ],
+							"domain_labels" : [ 0.0, "0.01", 0.2, "0.06799999999999999", 0.4, "0.126", 0.6, "0.184", 0.8, "0.242", 1.0, "0.3" ],
+							"range_start" : 0.0,
+							"range_end" : 0.996391405101977,
+							"range_style" : "linear",
+							"range_markers" : [  ],
+							"range_labels" : [  ],
+							"origin_x" : 0.0,
+							"origin_y" : 0.0
+						}
+ ]
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"domainlabel" : "grainrate",
+					"id" : "obj-17",
+					"margins" : [ 16.0, 16.0, 32.0, 32.0 ],
+					"maxclass" : "plot~",
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"numpoints" : 101,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 725.0, 28.0, 315.0, 169.0 ],
+					"rangelabel" : "likelihood",
+					"subplots" : [ 						{
+							"color" : [ 0.4, 0.4, 0.75, 1.0 ],
+							"thickness" : 3.0,
+							"point_style" : "none",
+							"line_style" : "origin",
+							"number_style" : "none",
+							"filter" : "none",
+							"domain_start" : 0.0,
+							"domain_end" : 1.0,
+							"domain_style" : "linear",
+							"domain_markers" : [  ],
+							"domain_labels" : [ 0.0, "0.001", 0.2, "0.0048000000000000004", 0.4, "0.0086", 0.6, "0.012399999999999998", 0.8, "0.0162", 1.0, "0.02" ],
+							"range_start" : 0.0,
+							"range_end" : 18.348478592695415,
+							"range_style" : "linear",
+							"range_markers" : [  ],
+							"range_labels" : [  ],
+							"origin_x" : 0.0,
+							"origin_y" : 0.0
+						}
+ ]
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "obj-15",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 2,
+					"outlettype" : [ "", "" ],
+					"patching_rect" : [ 446.0, 181.0, 91.0, 22.0 ],
+					"saved_object_attributes" : 					{
+						"filename" : "prob-visual.js",
+						"parameter_enable" : 0
+					}
+,
+					"text" : "js prob-visual.js"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "obj-13",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 2,
+					"outlettype" : [ "", "" ],
+					"patching_rect" : [ 446.0, 149.0, 91.0, 22.0 ],
+					"saved_object_attributes" : 					{
+						"filename" : "prob-visual.js",
+						"parameter_enable" : 0
+					}
+,
+					"text" : "js prob-visual.js"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "obj-11",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 2,
+					"outlettype" : [ "", "" ],
+					"patching_rect" : [ 446.0, 117.0, 91.0, 22.0 ],
+					"saved_object_attributes" : 					{
+						"filename" : "prob-visual.js",
+						"parameter_enable" : 0
+					}
+,
+					"text" : "js prob-visual.js"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "obj-8",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 2,
+					"outlettype" : [ "", "" ],
+					"patching_rect" : [ 446.0, 85.0, 91.0, 22.0 ],
+					"saved_object_attributes" : 					{
+						"filename" : "prob-visual.js",
+						"parameter_enable" : 0
+					}
+,
+					"text" : "js prob-visual.js"
+				}
+
+			}
+, 			{
 				"box" : 				{
 					"id" : "obj-4",
 					"maxclass" : "newobj",
@@ -180,7 +392,7 @@
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 243.0, 109.0, 109.0, 22.0 ],
-					"text" : "freq 220 440 880 1"
+					"text" : "freq 220 440 880 9"
 				}
 
 			}
@@ -191,8 +403,8 @@
 					"numinlets" : 2,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 243.0, 73.0, 129.0, 22.0 ],
-					"text" : "graindur 0.01 0.1 0.3 1"
+					"patching_rect" : [ 243.0, 73.0, 139.0, 22.0 ],
+					"text" : "graindur 0.01 0.1 0.3 0.8"
 				}
 
 			}
@@ -204,7 +416,7 @@
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 243.0, 42.0, 153.0, 22.0 ],
-					"text" : "grainrate 0.001 0.01 0.02 1"
+					"text" : "grainrate 0.001 0.01 0.02 2"
 				}
 
 			}
@@ -234,13 +446,37 @@
 		"lines" : [ 			{
 				"patchline" : 				{
 					"destination" : [ "obj-3", 0 ],
+					"order" : 1,
 					"source" : [ "obj-10", 0 ]
 				}
 
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "obj-3", 0 ],
+					"destination" : [ "obj-8", 0 ],
+					"order" : 0,
+					"source" : [ "obj-10", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-18", 0 ],
+					"source" : [ "obj-11", 1 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-18", 0 ],
+					"source" : [ "obj-11", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-11", 0 ],
+					"order" : 0,
 					"source" : [ "obj-12", 0 ]
 				}
 
@@ -248,6 +484,29 @@
 , 			{
 				"patchline" : 				{
 					"destination" : [ "obj-3", 0 ],
+					"order" : 1,
+					"source" : [ "obj-12", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-19", 0 ],
+					"source" : [ "obj-13", 1 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-19", 0 ],
+					"source" : [ "obj-13", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-13", 0 ],
+					"order" : 0,
 					"source" : [ "obj-14", 0 ]
 				}
 
@@ -255,6 +514,37 @@
 , 			{
 				"patchline" : 				{
 					"destination" : [ "obj-3", 0 ],
+					"order" : 1,
+					"source" : [ "obj-14", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-20", 0 ],
+					"source" : [ "obj-15", 1 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-20", 0 ],
+					"source" : [ "obj-15", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-15", 0 ],
+					"order" : 0,
+					"source" : [ "obj-16", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-3", 0 ],
+					"order" : 1,
 					"source" : [ "obj-16", 0 ]
 				}
 
@@ -324,6 +614,20 @@
 			}
 , 			{
 				"patchline" : 				{
+					"destination" : [ "obj-17", 0 ],
+					"source" : [ "obj-8", 1 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-17", 0 ],
+					"source" : [ "obj-8", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
 					"destination" : [ "obj-10", 0 ],
 					"order" : 3,
 					"source" : [ "obj-9", 0 ]
@@ -366,18 +670,25 @@
 ,
 		"dependency_cache" : [ 			{
 				"name" : "hanning.maxpat",
-				"bootpath" : "~/OneDrive/Documents/projects/SGRAN~",
+				"bootpath" : "~/Documents/projects/SGRAN-tilde",
 				"patcherrelativepath" : ".",
 				"type" : "JSON",
 				"implicit" : 1
 			}
 , 			{
-				"name" : "sgran~.mxe64",
-				"type" : "mx64"
+				"name" : "prob-visual.js",
+				"bootpath" : "~/Documents/projects/SGRAN-tilde",
+				"patcherrelativepath" : ".",
+				"type" : "TEXT",
+				"implicit" : 1
+			}
+, 			{
+				"name" : "sgran~.mxo",
+				"type" : "iLaX"
 			}
 , 			{
 				"name" : "sine.maxpat",
-				"bootpath" : "~/OneDrive/Documents/projects/SGRAN~",
+				"bootpath" : "~/Documents/projects/SGRAN-tilde",
 				"patcherrelativepath" : ".",
 				"type" : "JSON",
 				"implicit" : 1

@@ -1,0 +1,3 @@
+[submodule "prob-visual"]
+	path = prob-visual
+	url = https://github.com/trian-gles/prob-visual.git
